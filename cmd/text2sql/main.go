@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+  "bufio"
 
 	"github.com/arkuhn/text2sql/internal/config"
 	"github.com/arkuhn/text2sql/internal/db"
@@ -88,12 +89,14 @@ func runQuery(cmd *cobra.Command, args []string) {
 		}
 		schemas[table] = schema
 	}
-
-	originalQuery := queryText
+  
+  originalQuery := queryText
 	sqlQuery := ""
+	reader := bufio.NewReader(os.Stdin)
 
 	for {
 		if sqlQuery == "" {
+			var err error
 			sqlQuery, err = llm.GenerateSQL(queryText, tables, schemas, model)
 			if err != nil {
 				fmt.Printf("Error generating SQL: %v\n", err)
@@ -101,14 +104,14 @@ func runQuery(cmd *cobra.Command, args []string) {
 			}
 		}
 
-		fmt.Println("Generated SQL Query:")
+		fmt.Println("\nGenerated SQL Query:")
 		fmt.Println(sqlQuery)
 
-		fmt.Print("Choose an action: [r]un, [e]dit, [q]uit: ")
-		var action string
-		fmt.Scanln(&action)
+		fmt.Print("\nChoose an action: [r]un, [e]dit, [q]uit: ")
+		action, _ := reader.ReadString('\n')
+		action = strings.TrimSpace(strings.ToLower(action))
 
-		switch strings.ToLower(action) {
+		switch action {
 		case "r":
 			result, err := db.ExecuteQuery(connection, sqlQuery)
 			if err != nil {
@@ -122,14 +125,17 @@ func runQuery(cmd *cobra.Command, args []string) {
 			}
 			return
 		case "e":
-			fmt.Print("Enter your refinement request: ")
-			var refinement string
-			fmt.Scanln(&refinement)
+      fmt.Print("Edit prompt: ")
+			refinement, _ := reader.ReadString('\n')
+			refinement = strings.TrimSpace(refinement)
+			
 			newPrompt := fmt.Sprintf(`Original request: %s
 Previously generated SQL: %s
 Refinement request: %s
 
 Please generate an updated SQL query based on the original request and the refinement.`, originalQuery, sqlQuery, refinement)
+			
+			var err error
 			sqlQuery, err = llm.GenerateSQL(newPrompt, tables, schemas, model)
 			if err != nil {
 				fmt.Printf("Error generating SQL: %v\n", err)
@@ -140,6 +146,7 @@ Please generate an updated SQL query based on the original request and the refin
 			fmt.Println("Invalid action. Please choose 'r', 'e', or 'q'.")
 		}
 	}
+
 }
 
 func runSetDefaultConnection(cmd *cobra.Command, args []string) {
