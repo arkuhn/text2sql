@@ -11,6 +11,7 @@ Usage:
 ```
 make build
 ./text2sql --help
+./text2sql set-default-connection "postgres://YourUserName:YourPassword@YourHostname:5432/YourDatabaseName"
 ./text2sql query "query episodes from season 1 that have 'a' in the title or air date on an even month" --using Episode --model llama
 ```
 
