@@ -1,5 +1,6 @@
 
-Small DX project for generating SQL queries with semantic text / natural language.
+Small DX project for generating SQL queries with semantic text / natural language. Allows generating/running/reprompting for sql queries
+with GPT4 or Llama 3.1. Introspects a postgres DB and passes relevant table schema in prompt automatically.
 
 
 Notes:
