@@ -3,11 +3,11 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
-  "os"
 
 	_ "github.com/lib/pq"
-  "github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter"
 )
 
 func ensureSSLMode(connectionString string) string {
@@ -172,4 +172,3 @@ func PrettyPrintQueryResults(results []map[string]interface{}) {
 	// Print the total number of rows
 	fmt.Printf("\nTotal rows: %d\n", len(results))
 }
-
