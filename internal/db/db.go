@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+  "os"
 
 	_ "github.com/lib/pq"
+  "github.com/olekukonko/tablewriter"
 )
 
 func ensureSSLMode(connectionString string) string {
@@ -119,5 +121,55 @@ func ExecuteQuery(connectionString, query string) ([]map[string]interface{}, err
 	}
 
 	return result, nil
+}
+
+func PrettyPrintQueryResults(results []map[string]interface{}) {
+	if len(results) == 0 {
+		fmt.Println("No results to display.")
+		return
+	}
+
+	// Get the column names from the first row
+	var columns []string
+	for col := range results[0] {
+		columns = append(columns, col)
+	}
+
+	// Create a new table writer
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader(columns)
+
+	// Add rows to the table
+	for _, row := range results {
+		var rowData []string
+		for _, col := range columns {
+			value := fmt.Sprintf("%v", row[col])
+			// Truncate long values
+			if len(value) > 50 {
+				value = value[:47] + "..."
+			}
+			rowData = append(rowData, value)
+		}
+		table.Append(rowData)
+	}
+
+	// Set table style
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetHeaderLine(false)
+	table.SetBorder(false)
+	table.SetTablePadding("\t")
+	table.SetNoWhiteSpace(true)
+
+	// Render the table
+	table.Render()
+
+	// Print the total number of rows
+	fmt.Printf("\nTotal rows: %d\n", len(results))
 }
 

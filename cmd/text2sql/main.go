@@ -116,10 +116,7 @@ func runQuery(cmd *cobra.Command, args []string) {
                                 break
                         }
                         if len(result) > 0 {
-                                fmt.Println("Query Result:")
-                                for _, row := range result {
-                                        fmt.Println(row)
-                                }
+                            db.PrettyPrintQueryResults(result)
                         } else {
                                 fmt.Println("Query executed successfully, but returned no results.")
                         }

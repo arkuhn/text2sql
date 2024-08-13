@@ -1,23 +1,30 @@
 package llm
 
 import (
-        "context"
-        "fmt"
-        "regexp"
-        "strings"
-        "os"
+	"bytes"
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
+	"time"
 
-        "github.com/sashabaranov/go-openai"
-        "github.com/arkuhn/text2sql/internal/config"
+	"github.com/arkuhn/text2sql/internal/config"
+	"github.com/sashabaranov/go-openai"
 )
 
 func extractSQL(text string) string {
-        sqlPattern := regexp.MustCompile("```\n(.*?)```")
-        matches := sqlPattern.FindStringSubmatch(text)
-        if len(matches) > 1 {
-                return strings.TrimSpace(matches[1])
-        }
-        return strings.TrimSpace(text)
+    sqlPattern := regexp.MustCompile("(?s)```(?:sql)?\n?(.*?)\n?```")
+    matches := sqlPattern.FindStringSubmatch(text)
+    if len(matches) > 1 {
+        extractedSQL := strings.TrimSpace(matches[1])
+        return extractedSQL
+    }
+
+    //log.Println("No SQL code block found. Returning original text.")
+    return strings.TrimSpace(text)
 }
 
 func quoteTableNames(sql string, tables []string) string {
@@ -124,7 +131,70 @@ func generateSQLClaude(query string, tables []string, schemas map[string][]strin
 }
 
 func generateSQLLlama(query string, tables []string, schemas map[string][]string) (string, error) {
-        // Placeholder for local Llama model integration
-        // You would implement the actual Llama integration here
-        return fmt.Sprintf(`SELECT * FROM "%s" WHERE condition = 'placeholder';`, tables[0]), nil
+	// Check if ollama is installed
+	if _, err := exec.LookPath("ollama"); err != nil {
+		return "", fmt.Errorf("ollama is not installed. Please install it from https://ollama.ai")
+	}
+
+	// Check if ollama server is running
+	if err := checkOllamaServer(); err != nil {
+		// Start ollama server
+		if err := startOllamaServer(); err != nil {
+			return "", fmt.Errorf("failed to start ollama server: %v", err)
+		}
+	}
+
+	// Prepare the prompt
+	schemaInfo := ""
+	for table, columns := range schemas {
+		schemaInfo += fmt.Sprintf("%s columns: %s\n", table, strings.Join(columns, ", "))
+	}
+
+	prompt := fmt.Sprintf(`Generate an SQL query for the following request: %s
+Available tables and their schemas:
+%s
+IMPORTANT: Ensure to quote all table names in double quotes to preserve case sensitivity, e.g., "TableName".
+    Additionally, your output will be sent right to a database so output no information other than the query, 
+    otherwise it will fail when sent to the server.`, query, schemaInfo)
+
+	// Run ollama
+	cmd := exec.Command("ollama", "run", "llama3.1", prompt)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to run ollama: %v", err)
+	}
+
+	return out.String(), nil
 }
+
+func checkOllamaServer() error {
+	resp, err := http.Get("http://localhost:11434/api/tags")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("ollama server is not running")
+	}
+	return nil
+}
+
+func startOllamaServer() error {
+	cmd := exec.Command("ollama", "serve")
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	// Wait for the server to start
+	for i := 0; i < 10; i++ {
+		if err := checkOllamaServer(); err == nil {
+			return nil
+		}
+		time.Sleep(time.Second)
+	}
+
+	return fmt.Errorf("ollama server failed to start within the expected time")
+}
+
